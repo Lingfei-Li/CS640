@@ -25,6 +25,10 @@ def switchy_main(net):
             return
 
         print("In {}, on port '{}' received packet {}".format(net.name, packet, dev))
+
+        #check and set/update src->dev mapping. should precede dst->dev map, according to QA
+        cache.set(packet[0].src, dev)
+
         if packet[0].dst in mymacs:
             pass
         else:
@@ -38,7 +42,4 @@ def switchy_main(net):
                         print("Flooding packet {} to {}".format(packet, intf.name))
                         net.send_packet(intf.name, packet)
 
-            #check and set/update src->dev mapping
-            print("Caching {} -> {}".format(packet[0].src, dev))
-            cache.set(packet[0].src, dev)
     net.shutdown()
