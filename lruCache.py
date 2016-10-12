@@ -91,11 +91,9 @@ def testLRUNature():
     assert not cache.contains(4)
 
 
-
-
-
-print("testing operations")
-testOperations()
-print("testing LRU nature")
-testLRUNature()
+if __name__ == "__main__":
+    print("testing operations")
+    testOperations()
+    print("testing LRU nature")
+    testLRUNature()
 

@@ -3,14 +3,15 @@
 from switchyard.lib.address import *
 from switchyard.lib.packet import *
 from switchyard.lib.common import *
-import lruCache 
+import lruCache, timeCache
 
 def switchy_main(net):
 
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
 
-    cache = lruCache.lruCache()
+    #cache = lruCache.lruCache()
+    cache = timeCache.timeCache(1)
 
     while True:
         print("")
@@ -19,6 +20,7 @@ def switchy_main(net):
         except NoPackets:
             continue
         except Shutdown:
+            cache.stopRefreshTask()
             return
 
         print("In {}, on port '{}' received packet {}".format(net.name, packet, dev))
