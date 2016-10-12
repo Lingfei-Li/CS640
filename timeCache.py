@@ -5,11 +5,9 @@ class timeCache:
 
     dstMap = {}
 
-
     def __init__(self, refreshIntervalSeconds):
         self.refreshIntervalSeconds = refreshIntervalSeconds
-        self.refreshThread = Timer(self.refreshIntervalSeconds, self.startRefreshTask)
-        self.refreshThread.start()
+        self.startRefreshTask()
 
     def startRefreshTask(self):
         self.refreshCache()
