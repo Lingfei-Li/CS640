@@ -1,0 +1,33 @@
+put any thought of testing in this file.
+
+time cache:
+    cache:
+        properly remove entry after timeout
+        entry exists before timeout
+        get entry -> elapsed time doesn't change
+        update entry -> time reset
+    switch:
+        initial traffic: flood
+        response before timeout: send to one port
+        response after timeout: flood
+        topology change: request with existing src from different port: update elapsed time
+        response before update timeout: send to one port
+        response after update timeout: flood
+
+lru cache:
+    cache:
+        all entries exist before table's full
+        properly remove LRU entry after table's full
+        get: update freshness
+        incoming src-port mapping:
+            changed: update freshness
+            didn't change: don't update freshness
+    switch:
+        initial traffic: flood
+        response before kickLRU: send to port
+        incoming src-dev mapping should be after dst mapping (set(src), then get(dst))
+            sample:
+            (h1,h4), (h2,h1), (h3,h1), (h4,h1), (h5,h1), (h6.h7), (h4,h5)
+            [h1]->[h1,h2]->[h1,h3,h2]->[h1,h4,h3,h2]->[h1,h5,h4,h3,h2]->[h6,h1,h5,h4,h3]->[h5,h6,h1,h4,h3]
+        after kicked as LRU, flood
+        topology change: request with existing src from different port: update freshness
