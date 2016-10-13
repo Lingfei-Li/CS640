@@ -10,3 +10,8 @@ t:
 t2:
 	~/switchyard-master/srpy.py -t -s test2.srpy myswitch.py
 
+mn:
+	sudo python switchtopo.py
+
+sw:
+	python srpy.py myswitch.py

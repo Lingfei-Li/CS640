@@ -11,7 +11,10 @@ def switchy_main(net):
     mymacs = [intf.ethaddr for intf in my_interfaces]
 
     cache = lruCache.lruCache()
-    #cache = timeCache.timeCache(1)
+    #cache = timeCache.timeCache(10)
+
+    packetCache = {}
+    packetCnt = 0
 
     while True:
         print("")
@@ -24,7 +27,7 @@ def switchy_main(net):
                 cache.stopRefreshTask()
             return
 
-        print("In {}, on port '{}' received packet {}".format(net.name, packet, dev))
+        print("In {}, on port '{}' received packet:\n{}".format(net.name, dev, packet))
 
         #check and set/update src->dev mapping. should precede dst->dev map, according to QA
         cache.set(packet[0].src, dev)
@@ -34,12 +37,13 @@ def switchy_main(net):
         else:
             if cache.contains(packet[0].dst):
                 outDev = cache.get(packet[0].dst)
-                print("Sending packet {} to {}".format(packet, outDev))
+                print("Sending packet to {}".format(outDev))
                 net.send_packet(outDev, packet)
             else:   #unknown dst or FF:..:FF
                 for intf in my_interfaces:
                     if dev != intf.name:
-                        print("Flooding packet {} to {}".format(packet, intf.name))
+                        print("Flooding packet to {}".format(intf.name))
                         net.send_packet(intf.name, packet)
+        cache.dump()
 
     net.shutdown()

@@ -1,15 +1,23 @@
 
+from operator import itemgetter
+
 class lruCache:
-
-
     def __init__(self):
         self.dstMap = {}
         self.freshness = {}
         self.limit = 5
         self.cnt = 0
 
+    def dumpSorted(self):
+        if not self.dstMap:
+            print("lruCache is empty")
+        else:
+            print("dst -> freshness")
+            for dst, freshness in sorted(self.freshness.items(), key=itemgetter(1)):
+                print(str(dst) + " -> " + str(freshness));
+
     def dump(self):
-        if(not self.dstMap):
+        if not self.dstMap:
             print("lruCache is empty")
         else:
             print("dumping dstMap in lruCache:")
@@ -66,7 +74,11 @@ def testOperations():
     cache.dump()
     print(cache.contains(1))
     cache.kickLRU()
-    cache.dump()
+    cache.set(2, 22)
+    cache.set(3, 33)
+    cache.set(1, 11)
+    cache.get(2)
+    cache.dumpSorted()
     print("logic test ok...")
 
 def testLogic():
@@ -113,6 +125,6 @@ def testLogic():
 if __name__ == "__main__":
     print("testing operations")
     testOperations()
-    print("testing logic")
-    testLogic()
+    #print("testing logic")
+    #testLogic()
 
