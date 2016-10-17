@@ -45,8 +45,9 @@ def switchy_main(net):
                     if rm_traffic == -1 or rm_traffic > traffic_table[dst]:
                         rm_dst = dst
                         rm_traffic = traffic_table[dst]
-                del dst_table[rm_dst]
-                del traffic_table[rm_dst]
+                if not rm_traffic == -1:
+                    del dst_table[rm_dst]
+                    del traffic_table[rm_dst]
             dst_table[pkt_src] = dev
             traffic_table[pkt_src] = 0
         

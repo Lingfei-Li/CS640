@@ -1,12 +1,16 @@
 c:			#compile switchyard test scenarios
 	~/switchyard-master/srpy.py -c -s test.py
 	~/switchyard-master/srpy.py -c -s test2.py
+	~/switchyard-master/srpy.py -c -s test_traffic.py
 
 t:			#run compiled switchyard test scenario1
 	~/switchyard-master/srpy.py -t -s test.srpy myswitch_lru.py
 
 t2:			#run compiled switchyard test scenario2
 	~/switchyard-master/srpy.py -t -s test2.srpy myswitch_lru.py
+
+t3:
+	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
 
 mn:			#start Mininet
 	sudo python switchtopo.py
