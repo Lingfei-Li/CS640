@@ -25,3 +25,6 @@ cacheTest:	#run tests for caches
 	python3 testLRUCache.py
 	python3 testTimeoutCache.py
 	python3 testTrafficCache.py
+
+cleanTest:
+	rm test*.srpy
