@@ -41,7 +41,7 @@ def switchy_main(net):
                     if dev != intf.name:
                         print("Flooding packet to {}".format(intf.name))
                         net.send_packet(intf.name, packet)
-        cache.dump()
+        cache.dumpSorted()
 
     net.shutdown()
 
@@ -57,9 +57,8 @@ class lruCache:
         if not self.dstMap:
             print("lruCache is empty")
         else:
-            print("dst -> freshness")
             for dst, freshness in sorted(self.freshness.items(), key=itemgetter(1)):
-                print(str(dst) + " -> " + str(freshness));
+                print(str(dst) + " -> " + str(self.dstMap[dst]) + " fresh: " + str(freshness))
 
     def dump(self):
         if not self.dstMap:
@@ -82,11 +81,13 @@ class lruCache:
 
     def set(self, dst, dev):
         if not self.contains(dst):      #DNE. insert
+            print("DNE")
             while len(self.dstMap) >= self.limit:       #table full
                 self.kickLRU() 
             self.freshness[dst] = self.getFreshness() #add (dst, dev) as most recently used
             self.dstMap[dst] = dev
         else:                           #exists. update
+            print("Exists")
             if not dev == self.dstMap[dst]:
                 self.dstMap[dst] = dev         #update port info w/o modifying LRU order
 

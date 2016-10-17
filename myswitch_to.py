@@ -17,6 +17,7 @@ def switchy_main(net):
     packetCnt = 0
 
     while True:
+        time.sleep(4)  #for testing
         print("")
         try:
             dev,packet = net.recv_packet()
@@ -79,7 +80,7 @@ class timeoutCache:
         else:
             print("dumping dstMap in timeoutCache:")
             for dst in self.dstMap:
-                print(str(dst) + " -> " + str(self.dstMap[dst]))
+                print(str(dst) + " -> " + str(self.dstMap[dst]) + ", elapsed " + str(self.dstElapsedTime[dst]))
         print("")
 
     def contains(self, dst):
@@ -92,7 +93,7 @@ class timeoutCache:
             raise KeyError("timeoutCache.get - given dst is not in cache")
 
     def set(self, dst, dev):
-        if not self.contains(dst) or not dev == self.dstMap[dst]:   #same for new/update
+        if not self.contains(dst) or not dev == self.dstMap[dst]:   #same op for new/update
             self.dstMap[dst] = dev
             self.dstElapsedTime[dst] = 0
 
