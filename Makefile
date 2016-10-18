@@ -18,6 +18,15 @@ t3:			#run compiled switchyard test scenario
 t4:
 	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
 
+tto:
+	~/switchyard-master/srpy.py -t -s timeouttest.srpy myswitch_to.py
+
+taTest:
+	~/switchyard-master/srpy.py -t -s lrutest.srpy myswitch_lru.py
+	~/switchyard-master/srpy.py -t -s timeouttest.srpy myswitch_to.py
+	~/switchyard-master/srpy.py -t -s traffictest.srpy myswitch_traffic.py
+
+
 mn:			#start Mininet
 	sudo python switchtopo.py
 
