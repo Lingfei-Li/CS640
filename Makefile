@@ -1,25 +1,17 @@
 c:			#compile switchyard test scenarios
-	~/switchyard-master/srpy.py -c -s test.py
-	~/switchyard-master/srpy.py -c -s test2.py
-	~/switchyard-master/srpy.py -c -s testLRUSwitch1.py
-	~/switchyard-master/srpy.py -c -s testLRUSwitch2.py
-	~/switchyard-master/srpy.py -c -s testTOSwitch1.py
+	~/switchyard-master/srpy.py -c -s test_lru1.py
+	~/switchyard-master/srpy.py -c -s test_lru2.py
+	~/switchyard-master/srpy.py -c -s test_to.py
 	~/switchyard-master/srpy.py -c -s test_traffic.py
 
-t:			#run compiled switchyard test scenario
-	~/switchyard-master/srpy.py -t -s testLRUSwitch1.srpy myswitch_lru.py
-
-t2:			#run compiled switchyard test scenario
-	~/switchyard-master/srpy.py -t -s testLRUSwitch2.srpy myswitch_lru.py
-
-t3:			#run compiled switchyard test scenario
-	~/switchyard-master/srpy.py -t -s testTOSwitch1.srpy myswitch_to.py
-
-t4:
+t:
+	~/switchyard-master/srpy.py -t -s test_lru1.srpy myswitch_lru.py
+	~/switchyard-master/srpy.py -t -s test_lru2.srpy myswitch_lru.py
+	~/switchyard-master/srpy.py -t -s test_to.srpy myswitch_to.py
 	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
 
-tto:
-	~/switchyard-master/srpy.py -t -s timeouttest.srpy myswitch_to.py
+tt:
+	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
 
 taTest:
 	~/switchyard-master/srpy.py -t -s lrutest.srpy myswitch_lru.py

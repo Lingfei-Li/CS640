@@ -27,6 +27,7 @@ def switchy_main(net):
         except Shutdown:
             return
 
+
         pkt_dst = packet[0].dst
         pkt_src = packet[0].src
 
@@ -50,6 +51,9 @@ def switchy_main(net):
                     del traffic_table[rm_dst]
             dst_table[pkt_src] = dev
             traffic_table[pkt_src] = 0
+        for dst in dst_table:
+            print(str(dst) + " -> " + str(dst_table[dst]) + " traffic: " + str(traffic_table[dst]))
+        print("")
         
         log_debug ("In {} received packet {} on {}".format(net.name, packet, dev))
         if pkt_dst in mymacs:

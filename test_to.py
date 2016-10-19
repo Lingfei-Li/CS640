@@ -1,8 +1,8 @@
-from switchyard.lib.testing import Scenario, PacketInputEvent, PacketOutputEvent
+from switchyard.lib.testing import Scenario, PacketInputEvent, PacketOutputEvent, PacketInputTimeoutEvent
 from switchyard.lib.packet import *
 
 def create_scenario():
-    s = Scenario("LRU switch basic test")
+    s = Scenario("Timeout switch test")
     s.add_interface('eth1', '10:00:00:00:00:01')
     s.add_interface('eth2', '10:00:00:00:00:02')
     s.add_interface('eth3', '10:00:00:00:00:03')
@@ -19,35 +19,45 @@ def create_scenario():
     s.expect(PacketOutputEvent("eth2", testpkt, "eth3", testpkt, "eth4", testpkt, "eth5", testpkt,"eth6", testpkt,"eth7", testpkt, display=Ethernet), "initial: flood eth2-7")
 
 
-    #case2: after learning
+    #case2: initial learning
     testpkt = Ethernet() + IPv4() + ICMP()
     testpkt[0].src = "30:00:00:00:00:02"
     testpkt[0].dst = "30:00:00:00:00:01"
     s.expect(PacketInputEvent("eth2", testpkt, display=Ethernet), "packet from eth2")
     s.expect(PacketOutputEvent("eth1", testpkt, display=Ethernet), "After learning & before TO, only send to eth1")
 
-    #case3: wait for timeout. Remember to sleep in switch code
+    #case3: after timeout the entry should be kicked
     testpkt = Ethernet() + IPv4() + ICMP()
     testpkt[0].src = "30:00:00:00:00:01"
     testpkt[0].dst = "10:00:00:00:00:01"
     s.expect(PacketInputEvent("eth1", testpkt, display=Ethernet), "packet from eth1")
-    #case3: wait for timeout
-    testpkt = Ethernet() + IPv4() + ICMP()
-    testpkt[0].src = "30:00:00:00:00:01"
-    testpkt[0].dst = "10:00:00:00:00:01"
-    s.expect(PacketInputEvent("eth1", testpkt, display=Ethernet), "packet from eth1")
-    #case3: after timeout, should flood
+    #wait for timeout
+    s.expect(PacketInputTimeoutEvent(10), "wait for 10 sec")
+    #should be kicked -> flood
     testpkt = Ethernet() + IPv4() + ICMP()
     testpkt[0].src = "30:00:00:00:00:01"
     testpkt[0].dst = "20:00:00:00:00:02"
     s.expect(PacketInputEvent("eth1", testpkt, display=Ethernet), "packet from eth1")
-    s.expect(PacketOutputEvent("eth2", testpkt, "eth3", testpkt, "eth4", testpkt, "eth5", testpkt,"eth6", testpkt,"eth7", testpkt, display=Ethernet), "timeout: flood eth2-7")
+    s.expect(PacketOutputEvent("eth2", testpkt, "eth3", testpkt, "eth4", testpkt, "eth5", testpkt,"eth6", testpkt,"eth7", testpkt, display=Ethernet), "after timeout: should flood to eth2-7")
 
-    #case3: update topology should reset timer
+    #case4: updating topology should reset timer
     testpkt = Ethernet() + IPv4() + ICMP()
     testpkt[0].src = "30:00:00:00:00:01"
-    testpkt[0].dst = "10:00:00:00:00:01"
-    s.expect(PacketInputEvent("eth3", testpkt, display=Ethernet), "packet from eth3")
+    testpkt[0].dst = "10:00:00:00:00:01"        #send to switch - simply drop the packet
+    s.expect(PacketInputEvent("eth1", testpkt, display=Ethernet), "packet with dst 01 comes from eth1")
+    s.expect(PacketInputTimeoutEvent(8), "wait for 8 sec")
+    #update topology
+    testpkt = Ethernet() + IPv4() + ICMP()
+    testpkt[0].src = "30:00:00:00:00:01"
+    testpkt[0].dst = "10:00:00:00:00:01"        #send to switch - simply drop the packet
+    s.expect(PacketInputEvent("eth3", testpkt, display=Ethernet), "packet with dst 01 now comes from eth3")
+    s.expect(PacketInputTimeoutEvent(5), "wait for 5 sec")
+    #should not timeout
+    testpkt = Ethernet() + IPv4() + ICMP()
+    testpkt[0].src = "30:00:00:00:00:02"
+    testpkt[0].dst = "30:00:00:00:00:01"        #send to switch - simply drop the packet
+    s.expect(PacketInputEvent("eth2", testpkt, display=Ethernet), "packet for 01")
+    s.expect(PacketOutputEvent("eth3", testpkt, display=Ethernet), "map for 01->eth3 shuold not timeout (should not flood but only send to eth3)")
 
 
 
