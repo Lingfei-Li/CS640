@@ -1,12 +1,10 @@
 c:			#compile switchyard test scenarios
-	~/switchyard-master/srpy.py -c -s test_lru1.py
-	~/switchyard-master/srpy.py -c -s test_lru2.py
+	~/switchyard-master/srpy.py -c -s test_lru.py
 	~/switchyard-master/srpy.py -c -s test_to.py
 	~/switchyard-master/srpy.py -c -s test_traffic.py
 
 t:
-	~/switchyard-master/srpy.py -t -s test_lru1.srpy myswitch_lru.py
-	~/switchyard-master/srpy.py -t -s test_lru2.srpy myswitch_lru.py
+	~/switchyard-master/srpy.py -t -s test_lru.srpy myswitch_lru.py
 	~/switchyard-master/srpy.py -t -s test_to.srpy myswitch_to.py
 	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
 
