@@ -8,8 +8,8 @@ t:
 	~/switchyard-master/srpy.py -t -s test_to.srpy myswitch_to.py
 	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
 
-tt:
-	~/switchyard-master/srpy.py -t -s test_traffic.srpy myswitch_traffic.py
+to:
+	~/switchyard-master/srpy.py -t -s test_to.srpy myswitch_to.py
 
 taTest:
 	~/switchyard-master/srpy.py -t -s lrutest.srpy myswitch_lru.py

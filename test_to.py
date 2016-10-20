@@ -44,7 +44,7 @@ def create_scenario():
     #mapping for 02 should be kicked -> flood
     testpkt = mkpkt( "30:00:00:00:00:01", "30:00:00:00:00:02")
     s.expect(PacketInputEvent("eth1", testpkt, display=Ethernet), "packet from eth1")
-    s.expect(PacketOutputEvent("eth2", testpkt, "eth3", testpkt, "eth4", testpkt, "eth5", testpkt,"eth6", testpkt,"eth7", testpkt, display=Ethernet), "after timeout: should flood to eth2-7")
+    s.expect(PacketOutputEvent("eth2", testpkt, "eth3", testpkt, "eth4", testpkt, "eth5", testpkt,"eth6", testpkt,"eth7", testpkt, display=Ethernet), "after timeout: entry kicked. should flood to eth2-7")
 
     #case 6: updating topology should reset timer
     testpkt = mkpkt( "30:00:00:00:00:01", "10:00:00:00:00:01")      #send to switch to simply drop the packet

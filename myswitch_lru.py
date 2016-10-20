@@ -16,7 +16,7 @@ def switchy_main(net):
     packetCnt = 0
 
     while True:
-        print("")
+        log_debug("")
         try:
             dev,packet = net.recv_packet()
         except NoPackets:
@@ -24,7 +24,7 @@ def switchy_main(net):
         except Shutdown:
             return
 
-        print("In {}, on port '{}' received packet:\n{}".format(net.name, dev, packet))
+        log_debug("In {}, on port '{}' received packet:\n{}".format(net.name, dev, packet))
 
         #check and set/update src->dev mapping. should precede dst->dev map, according to QA
         cache.set(packet[0].src, dev)
@@ -34,12 +34,12 @@ def switchy_main(net):
         else:
             if cache.contains(packet[0].dst):
                 outDev = cache.get(packet[0].dst)
-                print("Sending packet to {}".format(outDev))
+                log_debug("Sending packet to {}".format(outDev))
                 net.send_packet(outDev, packet)
             else:   #unknown dst or FF:..:FF
                 for intf in my_interfaces:
                     if dev != intf.name:
-                        print("Flooding packet to {}".format(intf.name))
+                        log_debug("Flooding packet to {}".format(intf.name))
                         net.send_packet(intf.name, packet)
         cache.dumpSorted()
 
@@ -55,19 +55,19 @@ class lruCache:
 
     def dumpSorted(self):
         if not self.dstMap:
-            print("lruCache is empty")
+            log_debug("lruCache is empty")
         else:
             for dst, freshness in sorted(self.freshness.items(), key=itemgetter(1)):
-                print(str(dst) + " -> " + str(self.dstMap[dst]) + " fresh: " + str(freshness))
+                log_debug(str(dst) + " -> " + str(self.dstMap[dst]) + " fresh: " + str(freshness))
 
     def dump(self):
         if not self.dstMap:
-            print("lruCache is empty")
+            log_debug("lruCache is empty")
         else:
-            print("dumping dstMap in lruCache:")
+            log_debug("dumping dstMap in lruCache:")
             for dst in self.dstMap:
-                print(str(dst) + " -> " + str(self.dstMap[dst]) + " fresh: " + str(self.freshness[dst]))
-        print("")
+                log_debug(str(dst) + " -> " + str(self.dstMap[dst]) + " fresh: " + str(self.freshness[dst]))
+        log_debug("")
 
     def contains(self, dst):
         return dst in self.dstMap
@@ -81,13 +81,13 @@ class lruCache:
 
     def set(self, dst, dev):
         if not self.contains(dst):      #DNE. insert
-            print("DNE")
+            log_debug("DNE")
             while len(self.dstMap) >= self.limit:       #table full
                 self.kickLRU() 
             self.freshness[dst] = self.getFreshness() #add (dst, dev) as most recently used
             self.dstMap[dst] = dev
         else:                           #exists. update
-            print("Exists")
+            log_debug("Exists")
             if not dev == self.dstMap[dst]:
                 self.dstMap[dst] = dev         #update port info w/o modifying LRU order
 
