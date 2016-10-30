@@ -14,14 +14,15 @@ from switchyard.lib.common import *
 class Router(object):
     def __init__(self, net):
         self.net = net
+        self.ipHWMap = {}
         # other initialization stuff here
+        my_intf = net.interfaces()
+        for intf in my_intf:
+            self.ipHWMap[intf.ipaddr] = intf.ethaddr
+        log_debug(self.ipHWMap)
 
 
     def router_main(self):    
-        '''
-        Main method for router; we stay in a loop in this method, receiving
-        packets until the end of time.
-        '''
         while True:
             gotpkt = True
             try:
@@ -34,9 +35,32 @@ class Router(object):
                 break
 
             if gotpkt:
-                log_debug("Got a packet: {}".format(str(pkt)))
+                arp = pkt.get_header(Arp)
+                ''' ARP '''
+                if arp is not None:
+                    ''' Handling ARP Request '''
+                    if arp.operation == ArpOperation.Request:
+                        targetIP = arp.targetprotoaddr
+                        log_info("ARP request for IP=" + str(targetIP))
+                        if arp.targetprotoaddr in self.ipHWMap:
+                            log_info('yes')
+                            targetHW = self.ipHWMap[arp.targetprotoaddr]
+                            arpReply = create_ip_arp_reply( 
+                                    arp.senderhwaddr, 
+                                    targetHW,
+                                    arp.senderprotoaddr,
+                                    arp.targetprotoaddr);
+                            self.net.send_packet(dev, arpReply)
+                        else:
+                            ''' Ignore ARP request that is not targeted at out interfaces'''
+                            pass
+                    else:
+                        ''' Ignore ARP Reply '''
+                        pass
+                else:
+                    #TODO
+                    pass
 
-            #create_ip_arp_reply(0,0,0,0)
 
 
 
