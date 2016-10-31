@@ -7,3 +7,4 @@ htmlcov
 sandbox
 .*.swp
 test*.srpy
+tr*.srpy
