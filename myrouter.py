@@ -21,7 +21,7 @@ class Router(object):
         my_intf = net.interfaces()
         for intf in my_intf:
             self.localIpMacMap[intf.ipaddr] = intf.ethaddr
-            fwdEntry = [IPv4Network(str(intf.ipaddr)+'/'+str(intf.netmask)), intf.ipaddr, '']
+            fwdEntry = [IPv4Network('{}/{}'.format(intf.ipaddr, intf.netmask), strict=False), intf.ipaddr, '']
             log_debug(fwdEntry)
             self.fwdTable.append(fwdEntry)
 
@@ -31,10 +31,9 @@ class Router(object):
             for line in f:
                 entry = line.split()
                 if len(entry) == 4:
-                    fwdEntry = [IPv4Network(entry[0] + '/' + entry[1]), IPv4Address(entry[2]), entry[3]]
+                    fwdEntry = [IPv4Network('{}/{}'.format(entry[0], entry[1]), strict=False), IPv4Address(entry[2]), entry[3]]
                     self.fwdTable.append(fwdEntry)
                     log_debug(fwdEntry)
-        
         self.printFwdTable()
 
                
@@ -86,10 +85,10 @@ class Router(object):
                             log_info('Replying ARP')
                             targetHW = self.localIpMacMap[arp.targetprotoaddr]
                             arpReply = create_ip_arp_reply( 
-                                    arp.senderhwaddr, 
                                     targetHW,
-                                    arp.senderprotoaddr,
-                                    arp.targetprotoaddr);
+                                    arp.senderhwaddr, 
+                                    arp.targetprotoaddr,
+                                    arp.senderprotoaddr);
                             self.net.send_packet(dev, arpReply)
                         else:
                             ''' Ignore ARP request that is not targeted at out interfaces'''
@@ -117,10 +116,6 @@ class Router(object):
                         ''' drop the packet '''
                         log_info("No fowarding entry found. Drop the packet")
                         pass
-
-
-
-
 
 
 
