@@ -13,3 +13,6 @@ mn:
 
 cleanTest:
 	rm test*.srpy
+
+ws:
+	wireshark &

@@ -7,7 +7,7 @@ from switchyard.lib.address import *
 from switchyard.lib.common import *
 
 def create_scenario():
-    s = Scenario("Router test")
+    s = Scenario("Router test item#1")
     s.add_interface('eth1', '10:00:00:00:00:01', '1.1.1.1')
     s.add_interface('eth2', '10:00:00:00:00:02', '1.1.1.2')
     s.add_interface('eth3', '10:00:00:00:00:03', '1.1.1.3')
