@@ -7,7 +7,6 @@ Basic IPv4 router (static routing) in Python.
 import sys
 import os
 import time
-from QueuedPkt import QueuedPkt
 from queue import Queue
 from switchyard.lib.packet import *
 from switchyard.lib.address import *
@@ -19,10 +18,10 @@ class Router(object):
         self.remoteIpMacMap = {}        #IP-Eth mapping for other nodes
         self.localIpMacMap = {}         #IP-Eth mapping for the router's interfaces
         self.fwdTable = []              #forwarding table <ip_network, next_ip, eth_name>
-        self.pktPendingARP = Queue()    #packets pending ARP reply
+        self.queuePendingARP = Queue()    #packets pending ARP reply
         self.intfByName = {}
 
-        # other initialization stuff here
+        # forwarding table & router interface map
         for intf in net.interfaces():
             self.localIpMacMap[intf.ipaddr] = intf.ethaddr
             fwdEntry = [IPv4Network('{}/{}'.format(intf.ipaddr, intf.netmask), strict=False), intf.ipaddr, '']
@@ -30,7 +29,7 @@ class Router(object):
             self.fwdTable.append(fwdEntry)
             self.intfByName[intf.name] = intf
 
-        ''' building forwarding table from file '''
+        # building forwarding table from file
         with open("forwarding_table.txt") as f:
             for line in f:
                 entry = line.split()
@@ -70,8 +69,8 @@ class Router(object):
     def checkPendingQueue(self):
         log_info("checking pending queue")
         newQueue = Queue()
-        while not self.pktPendingARP.empty():
-            pkt = self.pktPendingARP.get()
+        while not self.queuePendingARP.empty():
+            pkt = self.queuePendingARP.get()
             if not pkt.retryLimitReached():
                 if pkt.outdated():
                     log_info("Sending ARP request for a pending pkt")
@@ -85,7 +84,7 @@ class Router(object):
                 log_info("Retry limit reached")
                 ''' retry limit reached. dropped '''
                 pass
-        self.pktPendingARP = newQueue
+        self.queuePendingARP = newQueue
 
     def forwardPacket(self, pkt, dev):
         log_info("forwarding a packet")
@@ -142,14 +141,22 @@ class Router(object):
                         self.remoteIpMacMap[arp.senderprotoaddr] = arp.senderhwaddr
 
                         ''' Pop and process pending packets '''
-                        queueItem = self.pktPendingARP.get()
-
-                        if queueItem.nextIP != arp.senderprotoaddr:
-                            ''' ARP reply doesn't match queue top '''
-                            log_failure("ARP reply hwaddr doesn't match queue top")
-                        else:
-                            ''' Finish forwarding '''
-                            self.forwardPacket(queueItem.pkt, queueItem.nextDev)
+                        popCnt = 0
+                        item = None
+                        fwdSuccess = False
+                        while popCnt < self.queuePendingARP.qsize():
+                            item = self.queuePendingARP.get()
+                            if item.nextIP != arp.senderprotoaddr:
+                                ''' ARP reply doesn't match this item '''
+                                self.queuePendingARP.put(item)
+                                popCnt += 1
+                            else:
+                                ''' Finish forwarding '''
+                                self.forwardPacket(item.pkt, item.nextDev)
+                                fwdSuccess = True
+                                break
+                        if fwdSuccess == False:
+                            log_failure("ARP reply hwaddr doesn't match with any queue item")
                 else:   
                     ''' Non-ARP Packet '''
                     log_info("Packet Is Not ARP")
@@ -169,15 +176,32 @@ class Router(object):
                             log_info("packet for someone else. try to forward it")
                             if nextIP in self.remoteIpMacMap:
                                 ''' Already have ip-mac map. forward it '''
-                                self.forwardPacket(pkt)
+                                self.forwardPacket(pkt, nextDev)
                             else:
                                 log_info("Don't have ip-mac map. Add to ARP pending queue!")
-                                self.pktPendingARP.put(QueuedPkt(pkt, nextIP, nextDev))
+                                self.queuePendingARP.put(PktPendingARP(pkt, nextIP, nextDev))
                     else:
                         ''' No forwarding entry. drop the packet '''
                         log_info("No fowarding entry found. Drop the packet")
 
 
+class PktPendingARP:
+    def __init__(self, pkt, nextIP, nextDev):
+        self.pkt = pkt
+        self.retry = 0
+        self.arpSentTime = -1
+        self.nextIP = nextIP
+        self.nextDev = nextDev
+
+    def outdated(self):
+        return time.time() > self.arpSentTime + 1
+
+    def arpSent(self):
+        self.retry += 1
+        self.arpSentTime = time.time()
+
+    def retryLimitReached(self):
+        return self.retry >= 5
 
 
 def switchy_main(net):

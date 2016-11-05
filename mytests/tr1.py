@@ -15,7 +15,7 @@ def create_scenario():
     #ARP request for router's interfaces
     requestPkt = create_ip_arp_request( "30:00:00:00:00:01", "3.1.1.1", "1.1.1.1");
     s.expect(PacketInputEvent("eth1", requestPkt, display=Ethernet), "ARP request from eth1")
-    replyPkt = create_ip_arp_reply( "30:00:00:00:00:01", "10:00:00:00:00:01", "3.1.1.1", "1.1.1.1");
+    replyPkt = create_ip_arp_reply( "10:00:00:00:00:01", "30:00:00:00:00:01", "1.1.1.1", "3.1.1.1");
     s.expect(PacketOutputEvent("eth1", replyPkt, display=Ethernet), "Target is router's interface. ARP Reply from the same port")
 
     #ARP request that is not for router
