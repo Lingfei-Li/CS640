@@ -45,7 +45,8 @@ class Router(object):
             print(fwdEntry)
 
     def fwdTableLookup(self, ipaddr):
-        log_info("looking up for ipaddr " + str(ipaddr))
+        ''' longest prefix match '''
+        log_debug("looking up for ipaddr " + str(ipaddr))
         maxLen = 0
         ansEntry = None
         for fwdEntry in self.fwdTable:
@@ -56,7 +57,7 @@ class Router(object):
         return ansEntry
 
     def makeARPrequest(self, ipaddr, dev):
-        log_info('making an ARP request for IP ' + str(ipaddr) + ' to port ' + dev)
+        log_debug('making an ARP request for IP ' + str(ipaddr) + ' to port ' + dev)
         if dev in self.intfByName:
             intf = self.intfByName[dev]
             print("sending arp: ", intf.name, intf.ethaddr, intf.ipaddr, ipaddr)
@@ -67,7 +68,7 @@ class Router(object):
 
 
     def checkPendingQueue(self):
-        log_info("checking pending queue")
+        log_debug("checking pending queue")
         for key, item in list(self.queuePendingARP.items()):
             if item.retryLimitReached():
                 log_info("Retry limit reached")
@@ -93,13 +94,13 @@ class Router(object):
 
     def router_main(self):    
         while True:
-            print("Router Running...")
 
             self.checkPendingQueue()
 
             gotpkt = True
             try:
                 dev,pkt = self.net.recv_packet(timeout=0.2)
+                print("indev: " +dev)
             except NoPackets:
                 log_debug("No packets available in recv_packet")
                 gotpkt = False
@@ -108,15 +109,16 @@ class Router(object):
                 break
 
             if gotpkt:
+                log_info("Router Running...")
                 arp = pkt.get_header(Arp)
                 if arp is not None:
                     ''' ARP '''
                     if arp.operation == ArpOperation.Request:
                         ''' ARP Request '''
                         targetIP = arp.targetprotoaddr
-                        log_info("ARP request for IP=" + str(targetIP))
+                        log_debug("ARP request for IP=" + str(targetIP))
                         if arp.targetprotoaddr in self.localIpMacMap:
-                            log_info('Replying ARP')
+                            log_debug('Replying ARP')
                             targetHW = self.localIpMacMap[arp.targetprotoaddr]
                             arpReply = create_ip_arp_reply( 
                                     targetHW,
@@ -125,7 +127,7 @@ class Router(object):
                                     arp.senderprotoaddr);
                             self.net.send_packet(dev, arpReply)
                         else:
-                            ''' Ignore ARP request that is not targeted at out interfaces'''
+                            ''' Ignore ARP request that is not targeted at our interfaces'''
                             pass
                     else:
                         ''' ARP Reply '''
@@ -149,22 +151,48 @@ class Router(object):
 
                     if fwdEntry is not None:
                         ''' Forwarding Entry Found '''
-                        log_info("Fowarding entry found.")
+                        log_debug("Fowarding entry found.")
                         nextIP = fwdEntry[1]
                         nextDev = fwdEntry[2]
 
                         if nextIP in self.localIpMacMap:
-                            ''' Packet for the router. Just drop '''
-                            log_info("packet for router. drop it")
+                            ''' Packet for the router '''
+                            icmp = pkt.get_header(ICMP)
+                            if icmp is not None:
+                                if icmp.icmptype == ICMPType.EchoRequest:
+                                    ''' Make Echo Reply '''
+                                    log_info("ICMP echo req for router")
+                                    ip = IPv4()
+                                    ip.src = pkt[IPv4].dst
+                                    ip.dst = pkt[IPv4].src
+
+                                    icmp = ICMP()
+                                    icmp.icmptype = ICMPType.EchoReply
+                                    icmp.icmpdata.identifier = pkt[ICMP].icmpdata.identifier
+                                    icmp.icmpdata.sequence = pkt[ICMP].icmpdata.sequence
+                                    icmp.icmpdata.data = pkt[ICMP].icmpdata.data
+
+                                    echoReply = ip + icmp
+                                    print("Request Pakcet:")
+                                    print(pkt)
+                                    print(echoReply)
+                                    print("sent to dev " + dev)
+
+                                    self.net.send_packet(dev, echoReply)
+                                else:
+                                    log_info("got non-echo-req ICMP packet")
+                            else:
+                                log_info("non-ICMP packet for router. drop it")
+
                         else:
                             ''' Packet for others. Forward it '''
-                            log_info("packet for someone else. try to forward it")
+                            log_debug("packet for someone else. try to forward it")
                             if nextIP in self.remoteIpMacMap:
                                 ''' Already have ip-mac map. forward it '''
                                 self.forwardPacket(pkt, nextDev)
                             else:
-                                log_info("Don't have ip-mac map. Add to ARP pending queue!")
-                                log_info("{} to {}".format(pkt[IPv4].src, pkt[IPv4].dst))
+                                log_debug("Don't have ip-mac map. Add to ARP pending queue!")
+                                log_debug("{} to {}".format(pkt[IPv4].src, pkt[IPv4].dst))
 
                                 if nextIP in self.queuePendingARP:
                                     self.queuePendingARP[nextIP].add(pkt)

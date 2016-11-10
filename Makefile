@@ -17,6 +17,10 @@ t:
 	#python3 srpy.py -t -s $(TESTDIR)tr2_4.srpy myrouter.py
 	python3 srpy.py -t -s $(TESTDIR)tr2_5.srpy myrouter.py
 
+ta:
+	python3 srpy.py -t -s test_router.srpy myrouter.py
+	python3 srpy.py -t -s icmp_tests.srpy myrouter.py
+
 r:
 	sudo python3 srpy.py myrouter.py
 
