@@ -15,10 +15,17 @@ t:
 	#python3 srpy.py -t -s $(TESTDIR)tr2_2.srpy myrouter.py
 	#python3 srpy.py -t -s $(TESTDIR)tr2_3.srpy myrouter.py
 	#python3 srpy.py -t -s $(TESTDIR)tr2_4.srpy myrouter.py
-	python3 srpy.py -t -s $(TESTDIR)tr2_5.srpy myrouter.py
+	#python3 srpy.py -t -s $(TESTDIR)tr2_5.srpy myrouter.py
+	#python3 srpy.py -t -s $(TESTDIR)tr2_6.srpy myrouter.py
 
 ta:
-	python3 srpy.py -t -s test_router.srpy myrouter.py
+	#python3 srpy.py -t -s test_router.srpy myrouter.py
+	#python3 srpy.py -t -s p2/routertest1.srpy myrouter.py
+	#python3 srpy.py -t -s p2/routertest2.srpy myrouter.py
+	#python3 srpy.py -t -s p2/routertest3.srpy myrouter.py
+	#python3 srpy.py -t -s p2/routertest4.srpy myrouter.py
+	python3 srpy.py -t -s p2/routertest5.srpy myrouter.py
+	python3 srpy.py -t -s p2/routertest6.srpy myrouter.py
 	python3 srpy.py -t -s icmp_tests.srpy myrouter.py
 
 r:
