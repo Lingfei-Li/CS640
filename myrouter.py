@@ -18,6 +18,7 @@ class Router(object):
         self.remoteIpMacMap = {}        #IP-Eth mapping for other nodes
         self.localIpMacMap = {}         #IP-Eth mapping for the router's interfaces
         self.fwdTable = []              #forwarding table <ip_network, next_ip, eth_name>
+        self.queueSeq = 0               #seq number for next queue item
         self.queuePendingARP = {}    #packets pending ARP reply
         self.intfByName = {}
 
@@ -39,6 +40,14 @@ class Router(object):
                     log_debug(fwdEntry)
         self.printFwdTable()
 
+
+    def addToPendingQueue(self, pkt, nextIP, nextDev):
+        if nextIP in self.queuePendingARP:
+            self.queuePendingARP[nextIP].add(pkt)
+        else:
+            self.queueSeq += 1
+            self.queuePendingARP[nextIP] = PktsPendingARP(pkt, nextIP, nextDev, self.queueSeq)
+
                
     def printFwdTable(self):
         print("Forwarding Table:")
@@ -55,10 +64,14 @@ class Router(object):
                 if fwdEntry[0].prefixlen > maxLen:
                     maxLen = fwdEntry[0].prefixlen
                     ansEntry = fwdEntry
+        if ansEntry is None:
+            log_info("No entry")
+        else:
+            log_info("Yes, found fwdEntry")
         return ansEntry
 
     def makeARPrequest(self, ipaddr, dev):
-        log_info('making an ARP request for IP ' + str(ipaddr) + ' to port ' + dev)
+        log_info('making an ARP request for IP=' + str(ipaddr) + ' to port ' + dev)
         if dev in self.intfByName:
             intf = self.intfByName[dev]
             print("sending arp: ", intf.name, intf.ethaddr, intf.ipaddr, ipaddr)
@@ -67,37 +80,138 @@ class Router(object):
         else:
             log_failure("No interface named" + dev + " found")
 
+    def makeTTLExpiredICMP(self, pkt):
+        fwdEntry = self.fwdTableLookup(pkt[IPv4].src)
+        if fwdEntry is None:
+            log_failure("fwdEntry is None when making TLE ICMP message")
+        else:
+            nextIP = fwdEntry[1]
+            if nextIP is None:
+                nextIP = pkt[IPv4].src  # Forwarding entry is from intf. dst directly connected
+            nextDev = fwdEntry[2]
+
+            mac = Ethernet()
+            mac.src = self.intfByName[nextDev].ethaddr
+
+            ip = IPv4()
+            ip.src = pkt[IPv4].dst
+            ip.dst = pkt[IPv4].src
+            ip.ttl = 64
+
+            icmp = ICMP()
+            icmp.icmptype = ICMPType.TimeExceeded
+            del pkt[pkt.get_header_index(Ethernet)]
+            icmp.icmpdata.data = pkt.to_bytes()[:28]
+            icmp.icmpdata.origdgramlen = len(pkt)
+            for key in dir(icmp):
+                print(key)
+            print(str(icmp))
+
+            ttlExpiredMsg = mac + ip + icmp
+            self.prepareToSend(ttlExpiredMsg, nextIP, nextDev)
+
+    def makeEchoReply(self, echoReq):
+        ''' forward entry lookup. request's src as reply's dst  '''
+        fwdEntry = self.fwdTableLookup(echoReq[IPv4].src)
+        if fwdEntry is None:
+            log_failure("fwdEntry not found when replying echo")
+        else:
+            nextIP = fwdEntry[1]
+            if nextIP is None:
+                nextIP = echoReq[IPv4].src  # Forwarding entry is from intf. dst directly connected
+            nextDev = fwdEntry[2]
+
+            mac = Ethernet()
+            mac.src = self.intfByName[nextDev].ethaddr
+
+            ip = IPv4()
+            ip.src = echoReq[IPv4].dst
+            ip.dst = echoReq[IPv4].src
+            ip.ttl = 64
+
+            icmp = ICMP()
+            icmp.icmptype = ICMPType.EchoReply
+            icmp.icmpdata.identifier = echoReq[ICMP].icmpdata.identifier
+            icmp.icmpdata.sequence = echoReq[ICMP].icmpdata.sequence
+            icmp.icmpdata.data = echoReq[ICMP].icmpdata.data
+
+            echoReply = mac + ip + icmp
+
+            self.prepareToSend(echoReply, nextIP, nextDev)
+
+
+    def makeHostUnreachableError(self, pkt):
+        fwdEntry = self.fwdTableLookup(pkt[IPv4].src)   #send icmp back to sender
+        if fwdEntry is not None:
+            nextIP = fwdEntry[1]
+            nextDev = fwdEntry[2]
+            if nextIP is None:
+                nextIP = pkt[IPv4].src      # Forwarding entry is from intf. dst directly connected
+
+            mac = Ethernet()
+            mac.src = self.intfByName[nextDev].ethaddr
+
+            ip = IPv4()
+            ip.src = self.intfByName[nextDev].ipaddr
+            ip.dst = pkt[IPv4].src
+            ip.ttl = 64
+
+            icmp = ICMP()
+            icmp.icmptype = ICMPType.DestinationUnreachable
+            icmp.icmpcode = ICMPTypeCodeMap[icmp.icmptype].HostUnreachable
+            del pkt[pkt.get_header_index(Ethernet)]
+            icmp.icmpdata.data = pkt.to_bytes()[:28]
+            icmp.icmpdata.origdgramlen = len(pkt)
+            
+            icmpErrMsg = mac + ip + icmp
+
+            print("host unreachable error packet:")
+            print(icmpErrMsg)
+
+            log_info("ready to send unreachable error")
+            self.prepareToSend(icmpErrMsg, nextIP, nextDev)
+
+        else: # No forwarding entry found in fwdTable
+            log_failure("No fowarding entry found for icmp error message")
+
+
 
     def checkPendingQueue(self):
-        log_debug("checking pending queue")
-        for key, item in list(self.queuePendingARP.items()):
+        log_info("checking pending queue")
+        for key, item in sorted(list(self.queuePendingARP.items()), key=lambda x:x[1].seq): #sort by sequence
             if item.retryLimitReached():
-                log_info("Retry limit reached")
-                del self.queuePendingARP[key]
-            else:
-                if item.outdated():
-                    log_info("Sending ARP request for a pending pkt")
-                    ''' resend and update counter&timer '''
-                    self.makeARPrequest(item.nextIP, item.nextDev)
-                    item.arpSent()
+                log_warn("Retry limit reached")
 
-    def forwardPacket(self, pkt, dev, nextMac):
+                for pkt in item.pkts:
+                    self.makeHostUnreachableError(pkt)
+                del self.queuePendingARP[key]
+            elif item.outdated():
+                log_info("Sending ARP request for a pending pkt. retry cnt: " + str(item.retry))
+                ''' resend and update counter&timer '''
+                self.makeARPrequest(item.nextIP, item.nextDev)
+                item.arpSent()
+
+    def sendPacketWithEth(self, pkt, dev, nextMac):
         ''' forward the packet (received from others) '''
-        log_info("forwarding a packet from {} to {}".format(pkt[IPv4].src, pkt[IPv4].dst))
+        log_info("sending a packet from {} to {}".format(pkt[IPv4].src, pkt[IPv4].dst))
         ''' Change Ethernet header: src is router interface, dst is next hop (not dst)  '''
         pkt[Ethernet].src = self.intfByName[dev].ethaddr
         pkt[Ethernet].dst = nextMac
         
-        ''' IP dst is the real dst '''
-        if pkt[ICMP] is not None and pkt[ICMP].icmptype == ICMPType.EchoReply:
-            print(pkt[IPv4].ttl)
-            pass
-        else:
-            pkt[IPv4].ttl -= 1      #decrement TTL
-        print("Packet to be forwarded:")
+        self.net.send_packet(dev, pkt)
+
+        print("Packet sent:")
         print(pkt)
 
-        self.net.send_packet(dev, pkt)
+
+    def prepareToSend(self, pkt, nextIP, nextDev):
+        if nextIP in self.remoteIpMacMap:
+            ''' Already have ip-mac map. forward it '''
+            self.sendPacketWithEth(pkt, nextDev, self.remoteIpMacMap[nextIP])
+        else:
+            log_info("add a packet to queue with nextIP=" + str(nextIP))
+            ''' Don't know MAC address yet. Add to queue and wait for ARP reply '''
+            self.addToPendingQueue(pkt, nextIP, nextDev)
         
 
     def router_main(self):    
@@ -116,16 +230,17 @@ class Router(object):
                 break
 
             if gotpkt:
-                log_debug("Router Running...")
+                log_info("Router Running...")
                 arp = pkt.get_header(Arp)
 
                 if arp is not None:
+                    ''' ARP '''
+
                     ''' Update IP-MAC mapping ''' 
-                    print("got ip = ")
-                    print(arp.senderprotoaddr)
+                    print("update remoteIpMacMap: " + str(arp.senderprotoaddr)+"-"+str(arp.senderhwaddr))
                     self.remoteIpMacMap[arp.senderprotoaddr] = arp.senderhwaddr
 
-                    ''' ARP '''
+
                     if arp.operation == ArpOperation.Request:
                         ''' ARP Request Received '''
 
@@ -151,7 +266,7 @@ class Router(object):
                         if arp.senderprotoaddr in self.queuePendingARP:
                             queueItem = self.queuePendingARP[arp.senderprotoaddr]
                             for pkt in queueItem.pkts:
-                                self.forwardPacket(pkt, queueItem.nextDev, self.remoteIpMacMap[queueItem.nextIP])
+                                self.sendPacketWithEth(pkt, queueItem.nextDev, self.remoteIpMacMap[queueItem.nextIP])
                             del self.queuePendingARP[arp.senderprotoaddr]
                         else:
                             log_warn("ARP reply's IP doesn't match with any queued item")
@@ -162,93 +277,47 @@ class Router(object):
                     dstIP = pkt[IPv4].dst
                     fwdEntry = self.fwdTableLookup(dstIP)
 
-                    ''' Update IP-MAC mapping ''' 
-                    self.remoteIpMacMap[pkt[IPv4].src] = pkt[Ethernet].src
-
                     if fwdEntry is not None:
-                        ''' Forwarding Entry Found '''
-                        log_info("Fowarding entry found.")
-                        print(fwdEntry)
-                        nextIP = fwdEntry[1]
-                        nextDev = fwdEntry[2]
+                        pkt[IPv4].ttl -= 1
+                        if pkt[IPv4].ttl > 0:
+                            ''' Forwarding Entry Found '''
+                            log_info("Fowarding entry found.")
+                            print(fwdEntry)
+                            nextIP = fwdEntry[1]
+                            nextDev = fwdEntry[2]
 
-                        if dstIP in self.localIpMacMap:
-                            ''' Packet for the router '''
-                            icmp = pkt.get_header(ICMP)
-                            if icmp is not None:
-                                if icmp.icmptype == ICMPType.EchoRequest:
-                                    ''' Make Echo Reply '''
+                            if dstIP in self.localIpMacMap:
+                                icmp = pkt.get_header(ICMP)
+                                if icmp is not None and icmp.icmptype == ICMPType.EchoRequest:
+                                    ''' Echo Request for the router. Make reply '''
+                                    self.makeEchoReply(pkt)
 
-                                    fwdEntry = self.fwdTableLookup(pkt[IPv4].src)
-                                    if fwdEntry is None:
-                                        print("fwdEntry is None when replying echo")
-                                    else:
-                                        nextIP = fwdEntry[1]
-                                        nextDev = fwdEntry[2]
-                                        log_info("ICMP echo request for router")
-
-                                        mac = Ethernet()
-                                        mac.src = self.intfByName[nextDev].ethaddr
-
-                                        ip = IPv4()
-                                        ip.src = pkt[IPv4].dst
-                                        ip.dst = pkt[IPv4].src
-                                        ip.ttl = 8
-
-                                        icmp = ICMP()
-                                        icmp.icmptype = ICMPType.EchoReply
-                                        icmp.icmpdata.identifier = pkt[ICMP].icmpdata.identifier
-                                        icmp.icmpdata.sequence = pkt[ICMP].icmpdata.sequence
-                                        icmp.icmpdata.data = pkt[ICMP].icmpdata.data
-
-                                        echoReply = mac + ip + icmp
-                                        print("Request Pakcet:")
-                                        print(pkt)
-                                        print(echoReply)
-                                        print("sent to dev " + nextDev)
-                                        ''' Normal process for forwarding IP packet '''
-                                        if nextIP in self.remoteIpMacMap:
-                                            ''' Already have ip-mac map. forward it '''
-                                            self.forwardPacket(echoReply, nextDev, self.remoteIpMacMap[nextIP])
-                                        else:
-                                            if ip.dst in self.queuePendingARP:
-                                                self.queuePendingARP[nextIP].add(echoReply)
-                                            else:
-                                                self.queuePendingARP[nextIP] = PktsPendingARP(echoReply, nextIP, nextDev)
-                                else:
-                                    log_info("got non-echo-req ICMP packet")
+                                else: # Packet is for the router, but not ICMP echo request
+                                    log_warn("non-EchoRequest packet for router")
+                                    #TODO: item 5.4
                             else:
-                                log_info("non-ICMP packet for router. drop it")
+                                ''' Packet for others. Forward it '''
+                                log_debug("packet for someone else. try to forward it")
+                                if nextIP is None:
+                                    nextIP = pkt[IPv4].dst      # Forwarding entry is from intf. dst directly connected
 
-                        else:
-                            ''' Packet for others. Forward it '''
-                            log_debug("packet for someone else. try to forward it")
-                            if nextIP is None:
-                                nextIP = pkt[IPv4].dst      # Forwarding entry is from intf. dst directly connected
-
-                            if nextIP in self.remoteIpMacMap:
-                                ''' Already have ip-mac map. forward it '''
-                                self.forwardPacket(pkt, nextDev, self.remoteIpMacMap[nextIP])
-                            else:
-                                log_info("Don't have ip-mac map. Add to ARP pending queue!")
-                                log_info("{} to {}".format(pkt[IPv4].src, pkt[IPv4].dst))
-
-                                if nextIP in self.queuePendingARP:
-                                    self.queuePendingARP[nextIP].add(pkt)
-                                else:
-                                    self.queuePendingARP[nextIP] = PktsPendingARP(pkt, nextIP, nextDev)
-                    else:
-                        ''' No forwarding entry. drop the packet '''
+                                self.prepareToSend(pkt, nextIP, nextDev)
+                        else: # TTL < 0
+                            log_warn("TTL < 0")
+                            self.makeTTLExpiredICMP(pkt)
+                    else: # No forwarding entry found in fwdTable
                         log_info("No fowarding entry found. Drop the packet")
+                        #TODO: item 5.1
 
 
 class PktsPendingARP:
-    def __init__(self, pkt, nextIP, nextDev):
+    def __init__(self, pkt, nextIP, nextDev, seq):
         self.pkts = [pkt]
         self.retry = 0
         self.arpSentTime = -1
         self.nextIP = nextIP 
         self.nextDev = nextDev
+        self.seq = seq
 
     def add(self, pkt):
         self.pkts.append(pkt)
