@@ -51,8 +51,6 @@ class Router(object):
     def printQueue(self):
         for key in list(self.queuePendingARP.keys()):
             print(key, self.queuePendingARP[key].retry)
-
-
                
     def printFwdTable(self):
         print("Forwarding Table:")
