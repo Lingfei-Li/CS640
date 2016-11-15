@@ -2,23 +2,19 @@
 TESTDIR=mytests/
 
 c:
-	#python3 srpy.py -c -s $(TESTDIR)tr1.py
-	#python3 srpy.py -c -s $(TESTDIR)tr2_1.py
-	#python3 srpy.py -c -s $(TESTDIR)tr2_2.py
+	python3 srpy.py -c -s $(TESTDIR)icmp_test.py
+	python3 srpy.py -c -s $(TESTDIR)fwd_test.py
 	#python3 srpy.py -c -s $(TESTDIR)tr2_3.py
-	#python3 srpy.py -c -s $(TESTDIR)tr2_4.py
-	#python3 srpy.py -c -s $(TESTDIR)tr2_5.py
-	python3 srpy.py -c -s $(TESTDIR)tr4_1.py
+	python3 srpy.py -c -s $(TESTDIR)tr2_4.py
+	python3 srpy.py -c -s $(TESTDIR)tr2_5.py
+
 
 t:
-	#python3 srpy.py -t -s $(TESTDIR)tr1.srpy myrouter.py
-	#python3 srpy.py -t -s $(TESTDIR)tr2_1.srpy myrouter.py
-	#python3 srpy.py -t -s $(TESTDIR)tr2_2.srpy myrouter.py
 	#python3 srpy.py -t -s $(TESTDIR)tr2_3.srpy myrouter.py
-	#python3 srpy.py -t -s $(TESTDIR)tr2_4.srpy myrouter.py
-	#python3 srpy.py -t -s $(TESTDIR)tr2_5.srpy myrouter.py
-	#python3 srpy.py -t -s $(TESTDIR)tr2_6.srpy myrouter.py
-	python3 srpy.py -t -s $(TESTDIR)tr4_1.srpy myrouter.py
+	python3 srpy.py -t -s $(TESTDIR)tr2_4.srpy myrouter.py
+	python3 srpy.py -t -s $(TESTDIR)tr2_5.srpy myrouter.py
+	python3 srpy.py -t -s $(TESTDIR)fwd_test.srpy myrouter.py
+	python3 srpy.py -t -s $(TESTDIR)icmp_test.srpy myrouter.py
 
 ta:
 	#python3 srpy.py -t -s test_router.srpy myrouter.py

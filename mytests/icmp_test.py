@@ -2,7 +2,7 @@ import cases
 
 def create_scenario():
     s = cases.init()
-    cases.case2_2(s)
+    cases.icmp_test(s)
     return s
 
 scenario = create_scenario()

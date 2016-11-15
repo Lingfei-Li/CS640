@@ -27,9 +27,31 @@ def mkIPpkt(srcMac, srcIP, dstIP, dstMac="00:00:00:00:00:00"):
     testpkt[0].dst = dstMac
     testpkt[1].src = srcIP
     testpkt[1].dst = dstIP
-    testpkt[1].ttl = 64
     return testpkt
 
+
+
+def case2_1(s): #packet for the router get dropped
+    testpkt = mkIPpkt( "10:00:00:00:00:01", "192.168.100.1", "192.168.100.2")
+    s.expect(PacketInputEvent("router-eth0", testpkt, display=Ethernet), "packet from router-eth0 (server1) for router. should be dropped")
+
+
+def case2_2(s): #forward packet. ARP request timeout
+    testpkt = mkIPpkt( "10:00:00:00:00:01", "192.168.100.1", "192.168.200.1")
+    s.expect(PacketInputEvent("router-eth0", testpkt, display=Ethernet), "server1 - server2. arrive at port router-eth0")
+
+    arpReqPkt = create_ip_arp_request("40:00:00:00:00:02", "192.168.200.2", "192.168.200.1");
+
+    s.expect(PacketOutputEvent("router-eth1", arpReqPkt, display=Ethernet), "1st ARP request to router-eth1 for 192.168.200.1(server2)")
+    s.expect(PacketInputTimeoutEvent(1), "wait for 1s to timeout pending queue")
+    s.expect(PacketOutputEvent("router-eth1", arpReqPkt, display=Ethernet), "2nd ARP request")
+    s.expect(PacketInputTimeoutEvent(1), "wait for 1s to timeout pending queue")
+    s.expect(PacketOutputEvent("router-eth1", arpReqPkt, display=Ethernet), "3rd ARP request")
+    s.expect(PacketInputTimeoutEvent(1), "wait for 1s to timeout pending queue")
+    s.expect(PacketOutputEvent("router-eth1", arpReqPkt, display=Ethernet), "4th ARP request")
+    s.expect(PacketInputTimeoutEvent(1), "wait for 1s to timeout pending queue")
+    s.expect(PacketOutputEvent("router-eth1", arpReqPkt, display=Ethernet), "5th ARP request")
+    s.expect(PacketInputTimeoutEvent(1), "wait for 1s. After 5 retries, no more ARP should be sent")
 
 
 def case2_3(s): #forward packet. ARP request ok
@@ -47,10 +69,7 @@ def case2_3(s): #forward packet. ARP request ok
 
     # router sets Ethernet header and forwards the packet to s2
     testpkt = mkIPpkt( "40:00:00:00:00:02", "192.168.100.1", "192.168.200.1", "20:00:00:00:00:01")
-    s.expect(PacketOutputEvent("router-eth1", testpkt, display=Ethernet, exact=False), "router sets Ethernet header and forwards the packet")
-
-
-
+    s.expect(PacketOutputEvent("router-eth1", testpkt, display=Ethernet), "router sets Ethernet header and forwards the packet")
 
 def case2_4(s): #two packets to forward. ARP reply order reverted
     # packet (s1 -> s2) arrives at the router-eth0
@@ -75,7 +94,7 @@ def case2_4(s): #two packets to forward. ARP reply order reverted
 
     # router sets Ethernet header and forwards the packet to client
     fwd_pkt2 = mkIPpkt( "40:00:00:00:00:03", "192.168.100.1", "10.1.1.1", "30:00:00:00:00:01")
-    s.expect(PacketOutputEvent("router-eth2", fwd_pkt2, display=Ethernet, exact=False), "router sets Ethernet header and forwards the packet to client")
+    s.expect(PacketOutputEvent("router-eth2", fwd_pkt2, display=Ethernet), "router sets Ethernet header and forwards the packet to client")
 
     # s2 replies ARP
     server2ArpReply = create_ip_arp_reply("20:00:00:00:00:01", "40:00:00:00:00:02", "192.168.200.1", "192.168.200.2");
@@ -83,7 +102,7 @@ def case2_4(s): #two packets to forward. ARP reply order reverted
 
     # router sets Ethernet header and forwards the packet to s2
     fwd_pkt1 = mkIPpkt( "40:00:00:00:00:02", "192.168.100.1", "192.168.200.1", "20:00:00:00:00:01")
-    s.expect(PacketOutputEvent("router-eth1", fwd_pkt1, display=Ethernet, exact=False), "router sets Ethernet header and forwards the packet")
+    s.expect(PacketOutputEvent("router-eth1", fwd_pkt1, display=Ethernet), "router sets Ethernet header and forwards the packet")
 
 
 def case2_5(s): #three packets with the same destination. Only 1 ARP req should be sent
@@ -93,7 +112,7 @@ def case2_5(s): #three packets with the same destination. Only 1 ARP req should 
     
     # router makes ARP request. only send to the port in the forwarding table
     arp_req1 = create_ip_arp_request("40:00:00:00:00:02", "192.168.200.2", "192.168.200.1");
-    s.expect(PacketOutputEvent("router-eth1", arp_req1, display=Ethernet, exact=False), "ARP request to router-eth1 for 192.168.200.1(server2)")
+    s.expect(PacketOutputEvent("router-eth1", arp_req1, display=Ethernet), "ARP request to router-eth1 for 192.168.200.1(server2)")
 
     # packet2 (s1 -> s2) arrives at the router-eth0
     fwd_pkt2 = mkIPpkt( "10:00:00:00:00:01", "192.168.100.1", "192.168.200.1")

@@ -2,7 +2,7 @@ import cases
 
 def create_scenario():
     s = cases.init()
-    cases.case4_1(s)
+    cases.fwd_test(s)
     return s
 
 scenario = create_scenario()

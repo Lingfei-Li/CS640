@@ -194,6 +194,7 @@ class Router(object):
             icmp = ICMP()
             icmp.icmptype = ICMPType.DestinationUnreachable
             icmp.icmpcode = ICMPTypeCodeMap[icmp.icmptype].NetworkUnreachable
+            print("ETHER HEADER INDEX: " + str(pkt.get_header_index(Ethernet)))
             del pkt[pkt.get_header_index(Ethernet)]
             icmp.icmpdata.data = pkt.to_bytes()[:28]
             icmp.icmpdata.origdgramlen = len(pkt)
