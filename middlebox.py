@@ -6,6 +6,7 @@ from switchyard.lib.common import *
 from threading import *
 from random import randint
 import time
+import copy
 
 def switchy_main(net):
 
@@ -42,36 +43,42 @@ def switchy_main(net):
         gotpkt = True
         try:
             dev,pkt = net.recv_packet()
-            log_info("Device is {}".format(dev))
+            log_debug("Device is {}".format(dev))
         except NoPackets:
-            log_info("No packets available in recv_packet")
+            log_debug("No packets available in recv_packet")
             gotpkt = False
         except Shutdown:
-            log_info("Got shutdown signal")
+            log_debug("Got shutdown signal")
             break
 
         if gotpkt:
-            log_info("I got a packet {}".format(pkt))
+            log_debug("I got a packet {}".format(pkt))
 
-        if pkt.get_header(Arp) is not None:
+        if pkt.get_header(Arp) is not None:     #drop ARP packets
             continue
 
-        if dev == "middlebox-eth0":
-            log_info("Received from blaster")
+        pkt_tmp = copy.deepcopy(pkt)
+        del pkt_tmp[Ethernet]
+        del pkt_tmp[IPv4]
+        del pkt_tmp[UDP]
+
+        seq_num_bytes = pkt_tmp.to_bytes()[:4]
+        seq_num = struct.unpack(">I", seq_num_bytes)[0]
+
+
+        if dev == "middlebox-eth0": 
             rand = randint(0, 100)
-            log_info("rand is " + str(rand))
             if rand > mydroprate*100:
                 pkt[Ethernet].src = "40:00:00:00:00:02"
                 pkt[Ethernet].dst = "20:00:00:00:00:01"
                 pkt[IPv4].src = "192.168.200.2"
                 pkt[IPv4].dst = "192.168.200.1"
                 net.send_packet("middlebox-eth1", pkt)
-                log_info("-> forward!")
+                log_debug("seq #{} forwarded".format(seq_num))
             else:
-                log_info("-> drop...")
+                log_debug("-> drop...")
         elif dev == "middlebox-eth1":
-            log_info("ACK from blastee")
-            log_info("-> forward!")
+            log_info("ACK for #{}".format(seq_num))
             pkt[Ethernet].src = "40:00:00:00:00:01"
             pkt[Ethernet].dst = "10:00:00:00:00:01"
             pkt[IPv4].src = "192.168.100.2"

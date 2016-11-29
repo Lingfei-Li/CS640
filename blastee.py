@@ -23,10 +23,11 @@ def switchy_main(net):
         log_failure("wrong params")
         return 1
 
-    blastee_ip = params[1]
+    blaster_ip = params[1]
     num_pkt = int(params[3])
 
     #initialization done
+
 
     while True:
         gotpkt = True
@@ -41,15 +42,34 @@ def switchy_main(net):
             break
 
         if gotpkt:
-            log_info("I got a packet from {}".format(dev))
-            log_info("Pkt: {}".format(pkt))
+            log_debug("I got a packet from {}".format(dev))
+            log_debug("Pkt: {}".format(pkt))
             del pkt[Ethernet]
             del pkt[IPv4]
             del pkt[UDP]
-            seq_num_bytes = pkt.to_bytes()[:32]
-            seq_num = struct.unpack(">I", seq_num_bytes)
-            print(seq_num_bytes)
-            print(seq_num[0])
+            seq_num_bytes = pkt.to_bytes()[:4]
+            seq_num = struct.unpack(">I", seq_num_bytes)[0]
+            log_info("Pkt #{}".format(seq_num))
+
+            len_payload_bytes = pkt.to_bytes()[4:4+2]
+            len_payload = struct.unpack(">H", len_payload_bytes)[0]
+            payload_bytes = pkt.to_bytes()[6:6+len_payload]
+
+            ack = Ethernet() + IPv4() + UDP()
+            ack[1].protocol = IPProtocol.UDP
+
+            ack[Ethernet].src = "20:00:00:00:00:01"
+            ack[Ethernet].dst = "40:00:00:00:00:02"
+            ack[IPv4].src = "192.168.200.1"
+            ack[IPv4].dst = blaster_ip
+            seq_num_bytes = struct.pack('>I', seq_num)
+            ack.add_payload(seq_num_bytes)
+            ack.add_payload(payload_bytes[:8])
+
+            net.send_packet("blastee-eth0", ack)
+
+
+
 
 
     net.shutdown()
