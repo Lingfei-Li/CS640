@@ -76,7 +76,7 @@ def switchy_main(net):
                 net.send_packet("middlebox-eth1", pkt)
                 log_debug("seq #{} forwarded".format(seq_num))
             else:
-                log_debug("-> drop...")
+                log_info("drop #{}".format(seq_num))
         elif dev == "middlebox-eth1":
             log_info("ACK for #{}".format(seq_num))
             pkt[Ethernet].src = "40:00:00:00:00:01"

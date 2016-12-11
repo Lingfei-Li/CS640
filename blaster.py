@@ -78,7 +78,7 @@ def switchy_main(net):
         return 1
 
     LHS = RHS = 1
-    LHS_lastmove = 0
+    LHS_lastmove = time.time()
     acked_seq = []
 
     #initialization done
@@ -95,7 +95,7 @@ def switchy_main(net):
 
         gotpkt = True
         try:
-            dev,pkt = net.recv_packet(timeout=recv_timeout)
+            dev,pkt = net.recv_packet(timeout=recv_timeout/1000)
         except NoPackets:
             log_debug("No packets available in recv_packet")
             gotpkt = False
@@ -113,51 +113,56 @@ def switchy_main(net):
 
             payload_bytes = pkt.to_bytes()[4:4+len_payload]
 
-            log_debug("Seq# {}, payload: {}".format(seq_num, payload_bytes))
-            acked_seq.append(seq_num)
-            print("del seq num {} from queue".format(seq_num))
-            del pktBySeq[seq_num]   #remove the packet from buffer
+            if seq_num not in acked_seq:
+                log_debug("Seq# {}, payload: {}".format(seq_num, payload_bytes))
+                acked_seq.append(seq_num)
+                print("del seq num {} from queue".format(seq_num))
 
-            log_info("ACK #{}".format(seq_num))
-            if LHS in acked_seq:
-                LHS_lastmove = time.time()  #update the LHS last move time
-            while LHS in acked_seq:     #move LHS to the rightmost position without ACK
-                LHS += 1
+                del pktBySeq[seq_num]   #remove the packet from buffer
+
+                log_info("ACK #{}".format(seq_num))
+
+                # Move LHS is possible
+                if LHS in acked_seq:
+                    LHS_lastmove = time.time()  #update the LHS last move time
+                while LHS in acked_seq:     #move LHS to the rightmost position without ACK
+                    LHS += 1
         else:
+            #send new packets
             if RHS != num_pkt+1 and RHS-LHS+1 < SW:
                 log_info("Extending RHS (Sending new data)")
-                while RHS - LHS + 1 < SW and RHS <= num_pkt:
-                    pkt = Ethernet() + IPv4() + UDP()
-                    pkt[1].protocol = IPProtocol.UDP
+                pkt = Ethernet() + IPv4() + UDP()
+                pkt[1].protocol = IPProtocol.UDP
 
-                    pkt[Ethernet].src = "10:00:00:00:00:01"
-                    pkt[Ethernet].dst = "40:00:00:00:00:01"
-                    pkt[IPv4].src = "192.168.100.1"
-                    pkt[IPv4].dst = blastee_ip
-                    seq_num = RHS
-                    seq_num_bytes = struct.pack('>I', seq_num)
-                    pkt.add_payload(seq_num_bytes)
+                pkt[Ethernet].src = "10:00:00:00:00:01"
+                pkt[Ethernet].dst = "40:00:00:00:00:01"
+                pkt[IPv4].src = "192.168.100.1"
+                pkt[IPv4].dst = blastee_ip
+                seq_num = RHS
+                seq_num_bytes = struct.pack('>I', seq_num)
+                pkt.add_payload(seq_num_bytes)
 
-                    len_payload_bytes = struct.pack('>H', len_payload)
-                    pkt.add_payload(len_payload_bytes)
+                len_payload_bytes = struct.pack('>H', len_payload)
+                pkt.add_payload(len_payload_bytes)
 
-                    
-                    payload_int_arr = []
-                    while len(payload_int_arr) < len_payload:
-                        payload_int_arr.append(randint(0, 255)) #appending random bytes to payload
-                    payload_bytes = bytes(payload_int_arr)
-                    pkt.add_payload(payload_bytes)
-                    log_debug("payload: {}".format(payload_bytes))
+                
+                payload_int_arr = []
+                while len(payload_int_arr) < len_payload:
+                    payload_int_arr.append(randint(0, 255)) #appending random bytes to payload
+                payload_bytes = bytes(payload_int_arr)
+                pkt.add_payload(payload_bytes)
+                log_debug("payload: {}".format(payload_bytes))
 
 
-                    pktBySeq[seq_num] = pkt
-                    print("Add seq num {} to queue".format(seq_num))
-                    net.send_packet("blaster-eth0", pkt)
+                pktBySeq[seq_num] = pkt
+                print("Add seq num {} to queue".format(seq_num))
+                net.send_packet("blaster-eth0", pkt)
 
-                    totalByteSent += len_payload
-                    goodByteSent += len_payload
-                    RHS += 1
-            elif 1000*(time.time() - LHS_lastmove) > timeout_millis:        #coarse timeout
+                totalByteSent += len_payload
+                goodByteSent += len_payload
+                RHS += 1
+            #coarse timeout
+            if 1000*(time.time() - LHS_lastmove) > timeout_millis:        
                 log_info("Coarse timeout effective")
                 numCoarseTO += 1
                 LHS_lastmove = time.time()
