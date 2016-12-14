@@ -77,14 +77,21 @@ def switchy_main(net):
         log_failure("length should be in range [0,65535]")
         return 1
 
-    LHS = RHS = 1
+    ''' LHS is the left boundary of sent packets (included). RHS is the EXCLUSIVE right boundary '''
+    LHS = RHS = 1       
     LHS_lastmove = time.time()
     acked_seq = []
+
+    ''' reTxFinished marks whether a round of retransmission has finished '''
+    reTxFinished = True
+    ''' lastReTxPos marks the last handled position of ongoing retransmission '''
+    lastReTxPos = -1
 
     #initialization done
 
     while True:
         draw_progress(num_pkt, acked_seq, LHS, RHS)
+
         if LHS == num_pkt+1:
             log_info("All packets sent! Exit the program")
             totalTXTime = time.time() - startTime
@@ -110,26 +117,69 @@ def switchy_main(net):
 
             seq_num_bytes = pkt.to_bytes()[:4]
             seq_num = struct.unpack(">I", seq_num_bytes)[0]
-
-            payload_bytes = pkt.to_bytes()[4:4+len_payload]
+            #payload_bytes = pkt.to_bytes()[4:4+len_payload]
 
             if seq_num not in acked_seq:
-                log_debug("Seq# {}, payload: {}".format(seq_num, payload_bytes))
+                #log_debug("Seq# {}, payload: {}".format(seq_num, payload_bytes))
                 acked_seq.append(seq_num)
-                print("del seq num {} from queue".format(seq_num))
 
                 del pktBySeq[seq_num]   #remove the packet from buffer
 
                 log_info("ACK #{}".format(seq_num))
 
-                # Move LHS is possible
-                if LHS in acked_seq:
-                    LHS_lastmove = time.time()  #update the LHS last move time
+                # Move LHS if possible
                 while LHS in acked_seq:     #move LHS to the rightmost position without ACK
                     LHS += 1
-        else:
+                    LHS_lastmove = time.time()  #update the LHS last move time
+
+        else:   #no packet to receive
+
+            ''' Assume that retransmission is handled before sending new packets '''
+
+            #coarse timeout
+            if LHS < RHS and 1000*(time.time() - LHS_lastmove) >= timeout_millis:        
+                if reTxFinished == True:
+                    #new corase timeout
+                    log_info("Coarse timeout effective")
+                    numCoarseTO += 1
+                    reTxFinished = False
+
+                if lastReTxPos == -1 or lastReTxPos < LHS:
+                    #retransmission position start from LHS
+                    lastReTxPos = LHS
+
+                ''' Checking lastReTxPos before re-sending, because ACK may arrive between two reTx '''
+                while lastReTxPos in acked_seq and lastReTxPos < min(1+num_pkt, RHS):
+                    lastReTxPos += 1
+
+                if lastReTxPos == min(1+num_pkt, RHS): #right boundary of window, marks the end of reTx
+                    reTxFinished = True             #finishing current round of reTx
+                    lastReTxPos = -1                #reset reTx position
+                    LHS_lastmove = time.time()      #reset coarse timer
+                    continue
+
+
+                #Re-transmission
+                log_info("Resending seq# {}".format(lastReTxPos))
+
+                pkt = pktBySeq[lastReTxPos]
+                
+                net.send_packet("blaster-eth0", pkt)
+                numReTX += 1
+                totalByteSent += len_payload
+                lastReTxPos += 1
+
+                while lastReTxPos in acked_seq and lastReTxPos < min(1+num_pkt, RHS):
+                    lastReTxPos += 1
+
+                if lastReTxPos == min(1+num_pkt, RHS): #right boundary of window, marks the end of reTx
+                    reTxFinished = True             #finishing current round of reTx
+                    lastReTxPos = -1                #reset reTx position
+                    LHS_lastmove = time.time()      #reset coarse timer
+                    continue
+
             #send new packets
-            if RHS != num_pkt+1 and RHS-LHS+1 < SW:
+            elif RHS != num_pkt+1 and RHS-LHS+1 < SW:
                 log_info("Extending RHS (Sending new data)")
                 pkt = Ethernet() + IPv4() + UDP()
                 pkt[1].protocol = IPProtocol.UDP
@@ -161,20 +211,6 @@ def switchy_main(net):
                 totalByteSent += len_payload
                 goodByteSent += len_payload
                 RHS += 1
-            #coarse timeout
-            if 1000*(time.time() - LHS_lastmove) > timeout_millis:        
-                log_info("Coarse timeout effective")
-                numCoarseTO += 1
-                LHS_lastmove = time.time()
-                for seq in range(LHS, min(1+num_pkt, RHS)):
-                    if not seq in acked_seq:
-                        log_info("Resending seq# {}".format(seq))
-
-                        pkt = pktBySeq[seq]
-                        
-                        net.send_packet("blaster-eth0", pkt)
-                        numReTX += 1
-                        totalByteSent += len_payload
 
     net.shutdown()
 
