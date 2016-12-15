@@ -68,7 +68,7 @@ def switchy_main(net):
 
         if dev == "middlebox-eth0": 
             rand = randint(0, 100)
-            if rand > mydroprate*100:
+            if rand >= mydroprate*100:
                 pkt[Ethernet].src = "40:00:00:00:00:02"
                 pkt[Ethernet].dst = "20:00:00:00:00:01"
                 pkt[IPv4].src = "192.168.200.2"

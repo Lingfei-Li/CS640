@@ -44,7 +44,6 @@ def switchy_main(net):
     myintfnames = [intf.ethaddr for intf in my_intf]
     mymacs = [intf.ethaddr for intf in my_intf]
     myips = [intf.ipaddr for intf in my_intf]
-    pktBySeq = {}       #hashtable of packets with seq# as key
     startTime = time.time()
     numReTX = 0
     numCoarseTO = 0
@@ -81,6 +80,7 @@ def switchy_main(net):
     LHS = RHS = 1       
     LHS_lastmove = time.time()
     acked_seq = []
+    pktBySeq = {}       #hashtable of packets with seq# as key
 
     ''' reTxFinished marks whether a round of retransmission has finished '''
     reTxFinished = True
@@ -128,13 +128,13 @@ def switchy_main(net):
                 log_info("ACK #{}".format(seq_num))
 
                 # Move LHS if possible
-                while LHS in acked_seq:     #move LHS to the rightmost position without ACK
+                while LHS in acked_seq:     #move LHS to the leftmost unACK'ed position
                     LHS += 1
                     LHS_lastmove = time.time()  #update the LHS last move time
 
         else:   #no packet to receive
 
-            ''' Assume that retransmission is handled before sending new packets '''
+            ''' Assume that all retransmissions are handled before sending new packets '''
 
             #coarse timeout
             if LHS < RHS and 1000*(time.time() - LHS_lastmove) >= timeout_millis:        
@@ -160,7 +160,7 @@ def switchy_main(net):
 
 
                 #Re-transmission
-                log_info("Resending seq# {}".format(lastReTxPos))
+                log_info("Resend #{}".format(lastReTxPos))
 
                 pkt = pktBySeq[lastReTxPos]
                 
@@ -206,6 +206,7 @@ def switchy_main(net):
 
                 pktBySeq[seq_num] = pkt
                 print("Add seq num {} to queue".format(seq_num))
+                log_info("Send #{}".format(seq_num))
                 net.send_packet("blaster-eth0", pkt)
 
                 totalByteSent += len_payload
