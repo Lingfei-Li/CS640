@@ -64,7 +64,15 @@ def switchy_main(net):
             ack[IPv4].dst = blaster_ip
             seq_num_bytes = struct.pack('>I', seq_num)
             ack.add_payload(seq_num_bytes)
+
             ack.add_payload(payload_bytes[:8])
+
+            #padding the payload
+            padding = b'x\00x\00x\00x\00'
+            if len(payload_bytes[:8]) < 8:
+                ack.add_payload(padding[:8-len(payload_bytes[:8])]) 
+            print(len(ack))
+
 
             net.send_packet("blastee-eth0", ack)
 
